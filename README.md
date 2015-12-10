@@ -1,4 +1,14 @@
-Popular SO link: http://stackoverflow.com/questions/561245/virtual-memory-usage-from-java-under-linux-too-much-memory-used
+It has sometimes been suggested that Spring and Spring Boot are
+"heavyweight", perhaps just because they potentially punch above their
+weight, providing a lot of features for not very much user code. Can
+we quantify this though? In this article we concentrate on the memory
+used by a Spring Boot application. Specifically we would like to know
+more about the real overhead of using Spring and Spring Boot. We start
+by creating a basic application with Spring Boot, and look at a few
+different ways to measure it when it is running. Then we look at some
+comparison points: plain Java apps, apps that use Spring but not
+Spring Boot, an app that uses Spring Boot but no autoconfiguration,
+and some Ratpack sample apps.
 
 ## Vanilla Spring Boot App
 
@@ -103,6 +113,15 @@ There are loads of "dead" entries, but there is also a warning that the liveness
 
 ### Kernel Memory Tools
 
+You would think that a Linux OS would provide plenty of insight into a running process, and it does, but Java processes are notoriously hard to analyse. This [popular SO link](http://stackoverflow.com/questions/561245/virtual-memory-usage-from-java-under-linux-too-much-memory-used)
+talks about some of the problems in general. Lets have a look at some
+of the tools that are available and see what they tell us about our
+app.
+
+First up is the good old `ps` (the tool you use to look at processes
+on the command line). You can get a lot of the same information from
+`top`. Here's our application process:
+
 ```
 $ ps -au
 USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
@@ -110,13 +129,15 @@ dsyer     4330  2.4  2.1 2829092 169948 pts/5  Sl   18:03   0:37 java -Xmx32m -X
 ...
 ```
 
-RSS values are in the range 150-190MB according to `ps`. The sanitized
-values in `smem` aren't that different. Interestingly the PSS values
-for a non-JVM process are usually ​*significantly*​ lower than RSS,
-whereas for a JVM they are comparable. The JVM is very jealous of its
-memory.
+RSS (Resident Set Size) values are in the range 150-190MB according to
+`ps`. There is a tool called `smem` that is supposed to give a more
+sanitized view, and to accurately reflect non-shared memory, but the
+values there (for instance of PSS) aren't that
+different. Interestingly the PSS values for a non-JVM process are
+usually ​*significantly*​ lower than RSS, whereas for a JVM they are
+comparable. The JVM is very jealous of its memory.
 
-Limit threads a bit:
+We can try and limit threads a bit:
 
 application.properties
 ```
@@ -127,7 +148,9 @@ Doesn't make a lot of difference to the `ps` or `smem` results, or the
 JConsole numbers (it would only save of order a MB with the stack size
 we are using).
 
-Numbers from `pmap` don't seem to make much sense:
+A lower level tool is `pmap`, where we can look at the memory
+allocations assigned to a process. Numbers from `pmap` don't seem to
+make much sense either:
 
 ```
 $ pmap 4330
@@ -207,6 +230,10 @@ size: 3.6GB/40 = 90MB. Not far off the JConsole estimate.
 
 ## Do Nothing Plain Java App
 
+As a useful comparison point, let's make a really basic Java
+application that stays alive when we run it so we can meaure its
+memory consumption:
+
 ```
 public class Main throws Exception {
   public static void main (String[] args) {
@@ -215,11 +242,14 @@ public class Main throws Exception {
 }
 ```
 
-Heap 6MB, non-heap 14MB (Code Cache 4MB, Compressed Class Space 1MB,
-Metaspace 9MB), 1500 classes. Hardly any classes loaded so no surprise
-really.
+Results: heap 6MB, non-heap 14MB (Code Cache 4MB, Compressed Class
+Space 1MB, Metaspace 9MB), 1500 classes. Hardly any classes loaded so
+no surprise really.
 
 ## Do Nothing Spring Boot App
+
+Now suppose we do the same thing but load a Spring application context
+as well:
 
 ```java
 @SpringBootApplication
@@ -260,6 +290,8 @@ less than 2MB heap and about 6MB non-heap memory.
 
 ## Ratpack Groovy App
 
+A simple Ratpack groovy app can be created using [lazybones](https://github.com/pledbrook/lazybones):
+
 ```
 $ lazybones create ratpack .
 $ ./gradlew build
@@ -273,11 +305,12 @@ $ ls -l build/distributions/ratpack/lib/*.jar | awk '{tot+=$5;} END {print tot}'
 ```
 
 The used heap is pretty low to start with (13MB), grows to 22MB over
-time. Metaspace is about 34MB. JConsole reports 43MB non-heap usage. There are 31 threads.
+time. Metaspace is about 34MB. JConsole reports 43MB non-heap
+usage. There are 31 threads.
 
 ## Ratpack Java App
 
-Really basic static app:
+Here's a really basic static app:
 
 ```
 import ratpack.server.BaseDir;
@@ -297,18 +330,19 @@ public class DemoApplication {
 }
 ```
 
-Runs in about 16MB heap, 28MB non-heap as a Spring Boot fat jar. As a
-regular gradle application it's a bit lighter on heap (the cached jars
-aren't needed) but the same non-heap. There are 30
-threads. Interestingly there is no object that is bigger than 300KB.
+It runs in about 16MB heap, 28MB non-heap as a Spring Boot fat jar. As
+a regular gradle application it's a bit lighter on heap (the cached
+jars aren't needed) but the same non-heap and there are 30
+threads. Interestingly there is no object that is bigger than 300KB
+(whereas our Spring Boot apps with Tomcat generally have 10 or more
+objects above that level).
 
 ## Variations on the Vanilla App
 
 Running from exploded jar shaves up to 6MB off the heap (the
 difference is cached jar data in the launcher). Also makes startup a
 bit faster (less than 5s compared to as much as 7s when memory is
-constrained with the fat jar). TODO: how does this change when the
-classpath is bigger?
+constrained with the fat jar).
 
 A slimmed down version of the app with no static resources or webjars
 runs at 23MB heap and 41MB non-heap as exploded archive (starts in
@@ -321,8 +355,9 @@ Spring 4.2.4
 [clears the caches](https://jira.spring.io/browse/SPR-13783) once the
 context has started, resulting in some memory savings (down to about
 20MB heap). `DefaultListableBeanFactory` drops down to 3rd place and
-is almost half the size it was with the resource chain but it won't
-shrink any further without removing more features.
+is almost half the size it was with the resource chain (webjars
+locator) but it won't shrink any further without removing more
+features.
 
 In turns out that the `NioEndpoint` has
 a 1MB "oom parachute" that it holds onto until it detects an
@@ -355,7 +390,7 @@ public class SlimApplication implements EmbeddedServletContainerCustomizer {
 Using Jetty instead of Tomcat makes no difference whatsoever to the
 overall memory or heap, even though the `NioEndpoint` is high on the
 "Biggest objects" list in YourKit (takes about 1MB), and there is no
-corresponding blip for Jetty. 
+corresponding blip for Jetty. It also doesn't start up any quicker.
 
 As an example of a "real" Spring Boot app, Zipkin (Java) runs fine
 with with `-Xmx32m -Xss256k`, at least for short periods. It settles
@@ -388,17 +423,19 @@ Metaspace, however tells a different story, it goes up from 14MB to
 
 ### Deploy another application
 
-Trough heap consumption goes up a bit (above 50MB) and metaspace is up
-to 55MB. Under load heap usage jumps to 250MB or so, but always seems to be reclaimable.
+If we add another copy of the same application to the Tomcat
+container, trough heap consumption goes up a bit (above 50MB) and
+metaspace is up to 55MB. Under load heap usage jumps to 250MB or so,
+but always seems to be reclaimable.
 
-Add some more apps. With six apps deployed the metaspace is up to
-115MB and total non-heap to 161MB. This is consistent with what we saw
-for a single app: each one costs us about 20MB non-heap memory. Heap
-usage hits 400MB under load, so this doesn't go up proportionally
-(however it is being managed from above, so maybe that's not
-surprising). The trough of heap usage is up to about 130MB, so the
-cumulative effect of adding apps on the heap is visible there (about
-15MB per app).
+Then we add some more apps. With six apps deployed the metaspace is up
+to 115MB and total non-heap to 161MB. This is consistent with what we
+saw for a single app: each one costs us about 20MB non-heap
+memory. Heap usage hits 400MB under load, so this doesn't go up
+proportionally (however it is being managed from above, so maybe
+that's not surprising). The trough of heap usage is up to about 130MB,
+so the cumulative effect of adding apps on the heap is visible there
+(about 15MB per app).
 
 When we constrain Tomcat to the same amount of heap that the six apps
 would have in our vanilla embedded launch (`-Xmx192m`) the heap under
