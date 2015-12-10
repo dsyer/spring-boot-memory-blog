@@ -44,10 +44,10 @@ the stack size we are using. All the Spring Boot webapps we analyse
 have this same configuration.
 
 We might have to worry about how big the classpath is, in order to
-estimate what happens to the memory. (Despite some claims in the
+estimate what happens to the memory. Despite some claims in the
 internet that the JVM memory maps all jars on the classpath, we
 actually don't find any evidence that the size of the classpath has
-any effect on the running app). For reference, the size of the
+any effect on the running app. For reference, the size of the
 dependency jars (not including JDK) in the vanilla sample is 18MB:
 
 ```
@@ -55,8 +55,8 @@ $ jar -tvf  target/demo-0.0.1-SNAPSHOT.jar | grep lib/.*.jar | awk '{tot+=$1;} E
 18893563
 ```
 
-(this includes Spring Boot Web and Actuator starters, plus 3 or 4
-webjars for static resources and the webjar locator). A completely
+This includes Spring Boot Web and Actuator starters, plus 3 or 4
+webjars for static resources and the webjar locator. A completely
 minimal Spring Boot application including Spring and some logging but
 no web server would be around 5MB of jars.
 
@@ -74,8 +74,8 @@ usage (which is the same as you get from the `java.lang:type=Memory`
 MBean). The non-heap usage breaks down as Metaspace: 32MB, Compressed
 Class Space: 4MB, Code Cache: 13MB (you can get these numbers from the
 `java.lang:type=MemoryPool,name=*` MBeans). There are 6200 classes and
-25 threads (including a few that are added by teh monitoring tool that
-we use to measure them).
+25 threads, including a few that are added by the monitoring tool that
+we use to measure them.
 
 Here's a graph of the heap usage from a quiescent app under load,
 followed by a manual garbage collection (the double nick in the
@@ -354,16 +354,16 @@ public class DemoApplication {
 It runs in about 16MB heap, 28MB non-heap as a Spring Boot fat jar. As
 a regular gradle application it's a bit lighter on heap (the cached
 jars aren't needed) but uses the same non-heap memory. There are 30
-threads. Interestingly there is no object that is bigger than 300KB
-(whereas our Spring Boot apps with Tomcat generally have 10 or more
-objects above that level).
+threads. Interestingly there is no object that is bigger than 300KB,
+whereas our Spring Boot apps with Tomcat generally have 10 or more
+objects above that level.
 
 ## Variations on the Vanilla App
 
 Running from exploded jar shaves up to 6MB off the heap (the
 difference is cached jar data in the launcher). Also makes startup a
-bit faster (less than 5s compared to as much as 7s when memory is
-constrained with the fat jar).
+bit faster: less than 5s compared to as much as 7s when memory is
+constrained with the fat jar.
 
 A slimmed down version of the app with no static resources or webjars
 runs at 23MB heap and 41MB non-heap as exploded archive (starts in
