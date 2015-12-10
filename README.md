@@ -32,7 +32,7 @@ non-heap usage breaks down as Metaspace: 32MB, Compressed Class Space:
 `java.lang:type=MemoryPool,name=*` MBeans), 6200 classes. There are 25
 threads.
 
-<img src="manual-gc-web.png" width="80%"/>
+<img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/manual-gc-web.png" width="80%"/>
 
 For reference, the size of the dependency jars (not including JDK) is
 18MB:
@@ -240,7 +240,7 @@ public class MainApplication implements ApplicationRunner {
 Heap 12MB (but drops to 6MB after a manual GC), non-heap 26MB (Code
 Cache 7MB, Compressed Class Space 2MB, Metaspace 17MB), 3200 classes.
 
-<img src="manual-gc.png" width="80%"/>
+<img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/manual-gc.png" width="80%"/>
 
 Does Spring Boot itself (as opposed to just Spring) add a lot of
 overhead to this application? For starters, we can test that by
@@ -371,7 +371,7 @@ do much to the memory profile. Slightly slower startup maybe.
 Instead of using the emedded container in Spring Boot, what if we
 deploy a traditional war file to a Tomcat container?
 
-<img src="manual-gc-tomcat.png" width="80%"/>
+<img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/manual-gc-tomcat.png" width="80%"/>
 
 The container starts and warms up a bit and uses of order 50MB heap,
 and 40MB non-heap. Then we deploy a war of the vanilla Spring Boot
@@ -442,7 +442,7 @@ classes, and uses about 40 threads, so it should use a bit more
 non-heap memory, but not a lot (and indeed it does use about 70MB with
 256KB stacks, where the rule of thumb would predict 63MB). The performance of this model for the apps we measured is shown below:
 
-<img src="non-heap-correlation.png" width="80%"/>
+<img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/non-heap-correlation.png" width="80%"/>
 
 ## Conclusions
 
