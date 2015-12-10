@@ -1,30 +1,47 @@
 It has sometimes been suggested that Spring and Spring Boot are
 "heavyweight", perhaps just because they potentially punch above their
-weight, providing a lot of features for not very much user code. Can
-we quantify this though? In this article we concentrate on the memory
-used by a Spring Boot application. Specifically we would like to know
-more about the real overhead of using Spring and Spring Boot. We start
-by creating a basic application with Spring Boot, and look at a few
-different ways to measure it when it is running. Then we look at some
-comparison points: plain Java apps, apps that use Spring but not
-Spring Boot, an app that uses Spring Boot but no autoconfiguration,
-and some Ratpack sample apps.
+weight, providing a lot of features for not very much user code. In
+this article we concentrate on memory usage and ask if we can quantify
+the effect of using Spring? Specifically we would like to know more
+about the real overhead of using Spring and Spring Boot compared to
+other JVM applications. We start by creating a basic application with
+Spring Boot, and look at a few different ways to measure it when it is
+running. Then we look at some comparison points: plain Java apps, apps
+that use Spring but not Spring Boot, an app that uses Spring Boot but
+no autoconfiguration, and some Ratpack sample apps.
 
 ## Vanilla Spring Boot App
 
-A static app with webjars and `spring.resources.enabled=true`. Fine
-for serving nice-looking static content maybe with a REST endpoint or
-two. It can be launched like this:
+As a baseline we build a static app with a few webjars and
+`spring.resources.enabled=true`. This is perfectly fine for serving
+nice-looking static content maybe with a REST endpoint or two. The
+source code for the app we used to test is
+[in github](https://github.com/dsyer/spring-boot-memory-blog/blob/master/demo). You
+can build it with the `mvnw` wrapper script if you have a JDK 1.8
+available and on your path (`mvnw package`). It can be launched like
+this:
 
 ```
 $ java -Xmx32m -Xss256k -jar target/demo-0.0.1-SNAPSHOT.jar
 ```
 
-The we add some load, just to warm up the thread pools and force all the code paths to be exercised:
+The we add some load, just to warm up the thread pools and force all
+the code paths to be exercised:
 
 ```
 $ ab -n 2000 -c 4 http://localhost:8080/
 ```
+
+We can try and limit threads a bit in `application.properties`:
+
+```
+server.tomcat.max-threads: 4
+```
+
+but in the end it doesn't make a lot of difference to the numbers. We
+conclude from the analysis below that it would save of order a MB with
+the stack size we are using. All the Spring Boot webapps we analyse
+have this same configuration.
 
 ### JVM Tools
 
@@ -138,17 +155,6 @@ values there (for instance of PSS) aren't that
 different. Interestingly the PSS values for a non-JVM process are
 usually ​*significantly*​ lower than RSS, whereas for a JVM they are
 comparable. The JVM is very jealous of its memory.
-
-We can try and limit threads a bit:
-
-application.properties
-```
-server.tomcat.max-threads: 4
-```
-
-Doesn't make a lot of difference to the `ps` or `smem` results, or the
-JConsole numbers (it would only save of order a MB with the stack size
-we are using).
 
 A lower level tool is `pmap`, where we can look at the memory
 allocations assigned to a process. Numbers from `pmap` don't seem to
@@ -337,7 +343,7 @@ public class DemoApplication {
 
 It runs in about 16MB heap, 28MB non-heap as a Spring Boot fat jar. As
 a regular gradle application it's a bit lighter on heap (the cached
-jars aren't needed) but the same non-heap and there are 30
+jars aren't needed) but uses the same non-heap memory. There are 30
 threads. Interestingly there is no object that is bigger than 300KB
 (whereas our Spring Boot apps with Tomcat generally have 10 or more
 objects above that level).
