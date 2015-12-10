@@ -502,6 +502,19 @@ non-heap memory, but not a lot (and indeed it does use about 70MB with
 
 <img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/non-heap-correlation.png" width="80%"/>
 
+## Summary of Data
+
+| Application | Heap (MB) | Non Heap (MB) | Threads | Classes |
+|-------------|------------|----------|---------|---------|
+|Vanilla        |22  |50	|25	|6200|	
+|Plain Java	    |6   |14	|11	|1500|	
+|Spring Boot	|6   |26	|11	|3200|	
+|No Actuator	|5   |22	|11	|2700|	
+|Spring Only    |5   |20	|11	|2400|
+|Eureka	Client  |80  |70	|40	|7600|
+|Ratpack Groovy |22  |43    |24 |5300|
+|Ratpack Java   |16  |28    |22 |3000|
+
 ## Conclusions
 
 The effect Spring Boot on its own has on a Java application is to use
