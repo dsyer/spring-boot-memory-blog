@@ -1,11 +1,11 @@
 It has sometimes been suggested that Spring and Spring Boot are
-"heavyweight", perhaps just because they potentially punch above their
-weight, providing a lot of features for not very much user code. In
-this article we concentrate on memory usage and ask if we can quantify
-the effect of using Spring? Specifically we would like to know more
-about the real overhead of using Spring and Spring Boot compared to
-other JVM applications. We start by creating a basic application with
-Spring Boot, and look at a few different ways to measure it when it is
+"heavyweight", perhaps just because they allow apps to punch above
+their weight, providing a lot of features for not very much user
+code. In this article we concentrate on memory usage and ask if we can
+quantify the effect of using Spring? Specifically we would like to
+know more about the real overhead of using Spring compared to other
+JVM applications. We start by creating a basic application with Spring
+Boot, and look at a few different ways to measure it when it is
 running. Then we look at some comparison points: plain Java apps, apps
 that use Spring but not Spring Boot, an app that uses Spring Boot but
 no autoconfiguration, and some Ratpack sample apps.
@@ -39,9 +39,26 @@ server.tomcat.max-threads: 4
 ```
 
 but in the end it doesn't make a lot of difference to the numbers. We
-conclude from the analysis below that it would save of order a MB with
+conclude from the analysis below that it would save at most a MB with
 the stack size we are using. All the Spring Boot webapps we analyse
 have this same configuration.
+
+We might have to worry about how big the classpath is, in order to
+estimate what happens to the memory. (Despite some claims in the
+internet that the JVM memory maps all jars on the classpath, we
+actually don't find any evidence that the size of the classpath has
+any effect on the running app). For reference, the size of the
+dependency jars (not including JDK) in the vanilla sample is 18MB:
+
+```
+$ jar -tvf  target/demo-0.0.1-SNAPSHOT.jar | grep lib/.*.jar | awk '{tot+=$1;} END {print tot}'
+18893563
+```
+
+(this includes Spring Boot Web and Actuator starters, plus 3 or 4
+webjars for static resources and the webjar locator). A completely
+minimal Spring Boot application including Spring and some logging but
+no web server would be around 5MB of jars.
 
 ### JVM Tools
 
@@ -50,33 +67,25 @@ quite a lot of useful information from JConsole or JVisualVM (with the
 JConsole plugin so you can inspect MBeans).
 
 Heap usage for our vanilla app is a saw tooth, bounded above by the
-heap size and below by the amount of memory actually used in a
-quiescent state. The average weighs in at roughly 25MB under load (22
-after a manual GC). JConsole also reports 50MB non-heap usage (which
-is the same as you get from the `java.lang:type=Memory` MBean). The
-non-heap usage breaks down as Metaspace: 32MB, Compressed Class Space:
-4MB, Code Cache: 13MB (you can get these numbers from the
-`java.lang:type=MemoryPool,name=*` MBeans), 6200 classes. There are 25
-threads. Here's a graph of the heap usage from a quiescent app under
-load, followed by a manual garbage collection (the double nick in the
+heap size and below by the amount of memory used in a quiescent
+state. The average weighs in at roughly 25MB for an app under load
+(and 22MB after a manual GC). JConsole also reports 50MB non-heap
+usage (which is the same as you get from the `java.lang:type=Memory`
+MBean). The non-heap usage breaks down as Metaspace: 32MB, Compressed
+Class Space: 4MB, Code Cache: 13MB (you can get these numbers from the
+`java.lang:type=MemoryPool,name=*` MBeans). There are 6200 classes and
+25 threads (including a few that are added by teh monitoring tool that
+we use to measure them).
+
+Here's a graph of the heap usage from a quiescent app under load,
+followed by a manual garbage collection (the double nick in the
 middle) and a new equilibrium with a lower heap usage.
 
 <img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/manual-gc-web.png" width="80%"/>
 
-For reference, the size of the dependency jars (not including JDK) is
-18MB:
-
-```
-$ jar -tvf  target/demo-0.0.1-SNAPSHOT.jar | grep lib/.*.jar | awk '{tot+=$1;} END {print tot}'
-18893563
-```
-
-(this includes Spring Boot Web and Actuator starters, plus 3 or 4
-webjars for static resources and the webjar locator).
-
-Some other tools in the JVM might also be interesting. The first is
-`jps` which is useful for getting the process id of the app you want
-to inspect with the other tools:
+Some tools in the JVM other than JConsole might also be
+interesting. The first is `jps` which is useful for getting the
+process id of the app you want to inspect with the other tools:
 
 ```
 $ jps
@@ -98,6 +107,7 @@ $ jmap -histo 4330 | head
    5:          6023         459832  [Ljava.lang.Object;
    6:         13167         421344  java.util.HashMap$Node
    7:          3386         380320  java.lang.Class
+
 ```
 
 This data is of limited use because you can't trace the "big" objects back to their owners. For that you need a more fully featured profiler, like YourKit. YourKit does the aggregation for you and presents a list (although the details of how it does that are rather unclear).
@@ -182,7 +192,7 @@ for capacity management.
 
 A good test of how much memory is actually being used by a process is
 to keep launching more of them until the operating system starts to
-crumple. For exapmle, to launch 40 identical vanilla processes:
+crumple. For example, to launch 40 identical vanilla processes:
 
 ```
 $ for f in {8080..8119}; do (java -Xmx32m -Xss256k -jar target/demo-0.0.1-SNAPSHOT.jar --server.port=$f 2>&1 > target/$f.log &); done
@@ -190,9 +200,9 @@ $ for f in {8080..8119}; do (java -Xmx32m -Xss256k -jar target/demo-0.0.1-SNAPSH
 
 They are all competing for memory resources so it takes them all a
 while to start, which is fair enough. Once they all start they serve
-theire home pages quite efficiently (51ms latency over LAN at 99th
-percentile). Once they are up and running, stopping and starting one
-of the processes is relatively quick (a few seconds not a few
+their home pages quite efficiently (51ms latency over a crappy LAN at
+99th percentile). Once they are up and running, stopping and starting
+one of the processes is relatively quick (a few seconds not a few
 minutes).
 
 The VSZ numbers from `ps` are off the scale (as expected). The RSS
@@ -510,7 +520,10 @@ penalty for a standalone process is mainly related to non-heap usage
 though, which adds up to maybe 30MB per app when the number of apps is
 much larger than the number of containers (and less otherwise). We
 wouldn't expect this to increase as apps use more heap, so in most
-real apps it is insignificant. The benefits of deploying an app as an
-independent process following the
+real apps it is not significant. The benefits of deploying an app as
+an independent process following the
 [twelve-factor](http://twelvefactor.net) and Cloud Native principles,
-outweighs the cost of using a bit more memory in our opinion.
+outweigh the cost of using a bit more memory in our opinion. As a
+final note, we observe that the native tools in the operating system
+are not nearly as good as the ones provided by the JVM, when you want
+to inspect a process and find out about its memory usage.
