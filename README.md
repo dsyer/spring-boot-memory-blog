@@ -40,7 +40,9 @@ is the same as you get from the `java.lang:type=Memory` MBean). The
 non-heap usage breaks down as Metaspace: 32MB, Compressed Class Space:
 4MB, Code Cache: 13MB (you can get these numbers from the
 `java.lang:type=MemoryPool,name=*` MBeans), 6200 classes. There are 25
-threads.
+threads. Here's a graph of the heap usage from a quiescent app under
+load, followed by a manual garbage collection (the double nick in the
+middle) and a new equilibrium with a lower heap usage.
 
 <img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/manual-gc-web.png" width="80%"/>
 
@@ -269,6 +271,9 @@ public class MainApplication implements ApplicationRunner {
 
 Heap 12MB (but drops to 6MB after a manual GC), non-heap 26MB (Code
 Cache 7MB, Compressed Class Space 2MB, Metaspace 17MB), 3200 classes.
+The graph below shows the heap usage from launching the app to the end
+state. The big drop in the middle is the manual GC, and you can see
+that after this the app stabilizes at a different saw tooth.
 
 <img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/manual-gc.png" width="80%"/>
 
