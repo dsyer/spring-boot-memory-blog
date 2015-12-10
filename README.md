@@ -498,7 +498,9 @@ do nothing Java app.
 Adding Spring Cloud Eureka discovery only loads about another 1500
 classes, and uses about 40 threads, so it should use a bit more
 non-heap memory, but not a lot (and indeed it does use about 70MB with
-256KB stacks, where the rule of thumb would predict 63MB). The performance of this model for the apps we measured is shown below:
+256KB stacks, where the rule of thumb would predict 63MB).
+
+The performance of this model for the apps we measured is shown below:
 
 <img src="https://raw.githubusercontent.com/dsyer/spring-boot-memory-blog/master/non-heap-correlation.png" width="80%"/>
 
@@ -511,9 +513,12 @@ non-heap memory, but not a lot (and indeed it does use about 70MB with
 |Spring Boot	|6   |26	|11	|3200|	
 |No Actuator	|5   |22	|11	|2700|	
 |Spring Only    |5   |20	|11	|2400|
-|Eureka	Client  |80  |70	|40	|7600|
+|Eureka	Client  |80*  |70	|40	|7600|
 |Ratpack Groovy |22  |43    |24 |5300|
 |Ratpack Java   |16  |28    |22 |3000|
+
+\* Only the Eureka client has a larger heap: all the others are set
+explicitly to `-Xmx32m`.
 
 ## Conclusions
 
