@@ -202,7 +202,9 @@ memory performance on startup.
 
 This one started in 128m and then crashed under load:
 
+```
 -XX:MaxMetaspaceSize=40M -Xss256K -Xms16M -Xmx24M -XX:MetaspaceSize=20M
+```
 
 It bounces on startup, and interestingly has already passed a health
 check when it is killed with "out of memory":
@@ -305,7 +307,7 @@ Spring Boot Tomcat app, it should need more than the 128m
 available. It doesn't run in 64m. Here are the numbers:
 
 |Heap|Metaspace|Stack|Native|Total|Limit|Start(sec)|Key|
-|----|---------|-----|------|-----|-----|--------|---|
+|----|---------|-----|------|-----|-----|----------|---|
 |55  |64       |12   |-3    |131  |128  |2       |R  |
 
 The JAR in the vanilla Ratpack sample is shaded. A shaded Spring Boot
@@ -385,7 +387,7 @@ scales with it (and probably the balance is proportional to the
 archive size). This all leads to a guess of
 
 |Archive|Jar Type|Container |-Xmx (Heap) | -XX:MaxMetaspaceSize (Metaspace) | -Xss (Stack) | Native Buffer |
-|----------|------------|----------------------------------|--------------|---------------|
+|-------|--------|----------|------------|----------------------------------|--------------|---------------|
 |A |J     |L  |L - N - B  |M  |S:256K   | B |
 
 Where `N = (T + A * 60%)*S + A * 280%` is an estimator for the
@@ -417,7 +419,7 @@ values just as in the existing calculation).
 Here are some example values calculated using the formula above:
 
 |Archive|Jar Type|Threads|Container |-Xmx (Heap) | -XX:MaxMetaspaceSize (Metaspace) | -Xss (Stack) | Native Buffer |
-|-------|--------|-------|----------------------------------|--------------|---------------|
+|-------|--------|-------|----------|------------|----------------------------------|--------------|---------------|
 |15|	Nested|	35|	128|	28.25|	38.75|	256|	49|
 |15|	Nested|	35|	256|	156.25|	38.75|	256|	49|
 |15|	Nested|	35|	512|	412.25|	38.75|	256|	49|
@@ -474,7 +476,7 @@ between 256K and 1M for containers in 128m to 1g. So we'll go with `A
 result:
 
 |Archive|Jar Type|Threads|Container |-Xmx (Heap) | -XX:MaxMetaspaceSize (Metaspace) | -Xss (Stack) | Native Buffer |
-|-------|--------|-------|----------------------------------|--------------|---------------|
+|-------|--------|-------|----------|------------|----------------------------------|--------------|---------------|
 |8|	Nested|	26|	64|	16|	24|	256|                     36 |
 |15|	Nested|	29|	128|	26|	40|	256|             50   |
 |31|	Nested|	33|	256|	74|	80|	366|             77 |
