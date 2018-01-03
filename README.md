@@ -5,7 +5,7 @@ It has sometimes been suggested that Spring and Spring Boot are "heavyweight", p
 As a baseline we build a static app with a few webjars and `spring.resources.enabled=true`. This is perfectly fine for serving nice-looking static content maybe with a REST endpoint or two. The source code for the app we used to test is [in github](https://github.com/dsyer/spring-boot-memory-blog/blob/master/demo). You can build it with the `mvnw` wrapper script if you have a JDK 1.8 available and on your path (`mvnw package`). It can be launched like this:
 
 ```
-$ java -Xmx32m -Xss256k -jar target/demo-0.0.1-SNAPSHOT.jar
+$ java -Xmx32m -Xss256k -jar target/main-0.0.1-SNAPSHOT.jar
 ```
 
 The we add some load, just to warm up the thread pools and force all the code paths to be exercised:
@@ -25,7 +25,7 @@ but in the end it doesn't make a lot of difference to the numbers. We conclude f
 We might have to worry about how big the classpath is, in order to estimate what happens to the memory. Despite some claims in the internet that the JVM memory maps all jars on the classpath, we actually don't find any evidence that the size of the classpath has any effect on the running app. For reference, the size of the dependency jars (not including JDK) in the vanilla sample is 18MB:
 
 ```
-$ jar -tvf  target/demo-0.0.1-SNAPSHOT.jar | grep lib/.*.jar | awk '{tot+=$1;} END {print tot}'
+$ jar -tvf  target/main-0.0.1-SNAPSHOT.jar | grep lib/.*.jar | awk '{tot+=$1;} END {print tot}'
 18893563
 ```
 
@@ -50,7 +50,7 @@ process id of the app you want to inspect with the other tools:
 ```
 $ jps
 4289 Jps
-4330 demo-0.0.1-SNAPSHOT.jar
+4330 main-0.0.1-SNAPSHOT.jar
 ```
 
 Then we have the `jmap` histogram:
@@ -109,7 +109,7 @@ First up is the good old `ps` (the tool you use to look at processes on the comm
 ```
 $ ps -au
 USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
-dsyer     4330  2.4  2.1 2829092 169948 pts/5  Sl   18:03   0:37 java -Xmx32m -Xss256k -jar target/demo-0.0.1-SNAPSHOT.jar
+dsyer     4330  2.4  2.1 2829092 169948 pts/5  Sl   18:03   0:37 java -Xmx32m -Xss256k -jar target/main-0.0.1-SNAPSHOT.jar
 ...
 ```
 
@@ -141,7 +141,7 @@ Someone commented that the RSS values were accurate on his machine, which is int
 A good test of how much memory is actually being used by a process is to keep launching more of them until the operating system starts to crumple. For example, to launch 40 identical vanilla processes:
 
 ```
-$ for f in {8080..8119}; do (java -Xmx32m -Xss256k -jar target/demo-0.0.1-SNAPSHOT.jar --server.port=$f 2>&1 > target/$f.log &); done
+$ for f in {8080..8119}; do (java -Xmx32m -Xss256k -jar target/main-0.0.1-SNAPSHOT.jar --server.port=$f 2>&1 > target/$f.log &); done
 ```
 
 They are all competing for memory resources so it takes them all a while to start, which is fair enough. Once they all start they serve their home pages quite efficiently (51ms latency over a crappy LAN at 99th percentile). Once they are up and running, stopping and starting one of the processes is relatively quick (a few seconds not a few minutes).
@@ -151,8 +151,8 @@ The VSZ numbers from `ps` are off the scale (as expected). The RSS numbers look 
 ```
 $ ps -au
 USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
-dsyer    27429  2.4  2.1 2829092 169948 pts/5  Sl   18:03   0:37 java -Xmx32m -Xss256k -jar target/demo-0.0.1-SNAPSHOT.jar --server.port=8081
-dsyer    27431  3.0  2.2 2829092 180956 pts/5  Sl   18:03   0:45 java -Xmx32m -Xss256k -jar target/demo-0.0.1-SNAPSHOT.jar --server.port=8082
+dsyer    27429  2.4  2.1 2829092 169948 pts/5  Sl   18:03   0:37 java -Xmx32m -Xss256k -jar target/main-0.0.1-SNAPSHOT.jar --server.port=8081
+dsyer    27431  3.0  2.2 2829092 180956 pts/5  Sl   18:03   0:45 java -Xmx32m -Xss256k -jar target/main-0.0.1-SNAPSHOT.jar --server.port=8082
 ...
 ```
 
@@ -323,7 +323,7 @@ A very rough estimate for actual memory usage would be the heap size plus 20 tim
 ```
 memory = heap + non-heap
 
-non-heap = threads x stack + classes x 7/1000 
+non-heap = threads x stack + classes x 7MB/1000 
 ```
 
 The vanilla app loads about 6000 classes and the do nothing Java main loads about 1500. The estimate is accurate for the vanilla app and the do nothing Java app.
@@ -353,3 +353,7 @@ explicitly to `-Xmx32m`.
 ## Conclusions
 
 The effect Spring Boot on its own has on a Java application is to use a bit more heap and non-heap memory, mostly because of extra classes it has to load. The difference can be quantified as roughly an extra 2MB heap and 12MB non-heap. In a real application that might consume many times as much for actual business purposes this is pretty insignificant. The difference between vanilla Spring and Spring Boot is a few MB total (neither here nor there really). The Spring Boot team have only just started measuring things in this level of detail so we can probably expect optimizations in the future anyway. When we compare memory usage for apps deployed in a single Tomcat container with the same apps deployed as independent processes, not surprisingly the single container packs the apps more densely in memory. The penalty for a standalone process is mainly related to non-heap usage though, which adds up to maybe 30MB per app when the number of apps is much larger than the number of containers (and less otherwise). We wouldn't expect this to increase as apps use more heap, so in most real apps it is not significant. The benefits of deploying an app as an independent process following the [twelve-factor](http://12factor.net) and Cloud Native principles outweigh the cost of using a bit more memory in our opinion. As a final note, we observe that the native tools in the operating system are not nearly as good as the ones provided by the JVM, when you want to inspect a process and find out about its memory usage.
+
+> UPDATE: with Spring Boot 1.5.9 there are some minor changes. More classes are loaded (6400) and the non-heap memory usage goes up (59MB total), split equally between Code Cache and Metaspace. The heap usage goes down by about 2MB for the fat jar and there isn't much difference for the exploded jar (there was an optimization in the Spring Boot launcher). The effective multiplier in the non-heap predictor has gone up to 8.5MB.
+
+> UPDATE: Spring Boot 2.0.0 snaphots (post M7) are showing yet higher non-heap usage (65MB total, most of the increase is Metaspace), and classes loaded (7500). Also more threads (26 compared to 22). Heap usage is up about 2MB compared to Spring Boot 1.3, and it doesn't go down when running as an exploded archive. The effective multiplier for the non-heap predictor is about 8MB.
