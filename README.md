@@ -1,3 +1,5 @@
+> This docuement is about memory usage in Spring Boot apps. If you are interested in startup benchmarks please also see https://github.com/dsyer/spring-boot-startup-bench.
+
 It has sometimes been suggested that Spring and Spring Boot are "heavyweight", perhaps just because they allow apps to punch above their weight, providing a lot of features for not very much user code. In this article we concentrate on memory usage and ask if we can quantify the effect of using Spring? Specifically we would like to know more about the real overhead of using Spring compared to other JVM applications. We start by creating a basic application with Spring Boot, and look at a few different ways to measure it when it is running. Then we look at some comparison points: plain Java apps, apps that use Spring but not Spring Boot, an app that uses Spring Boot but no autoconfiguration, and some Ratpack sample apps.
 
 ## Vanilla Spring Boot App
